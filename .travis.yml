@@ -1,9 +1,8 @@
 language: node_js
 node_js: 7
-cache: yarn
 
 script:
-  yarn global install meteor-build-client
+  npm install -g meteor-build-client
   cd app && meteor-build-client ../build --path "/"
 
 deploy:
