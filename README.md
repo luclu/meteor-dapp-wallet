@@ -12,7 +12,7 @@ Start an `geth` node and and the app using meteor and open http://localhost:3000
 
     $ geth --rpccorsdomain "http://localhost:3000" --rpc --unlock <your account>
 
-Starting the wall dapp using [Meteor](http://meteor.com/install)
+Starting the wallet dapp using [Meteor](http://meteor.com/install)
 
     $ cd meteor-dapp-wallet/app
     $ meteor
@@ -29,7 +29,7 @@ To create a build version of your app run:
 
     // bundle dapp
     $ cd meteor-dapp-wallet/app
-    $ meteor-build-client ../build --path "/"
+    $ meteor-build-client ../build --path ""
 
 This will generate the files in the `../build` folder. Double click the index.html to start the app.
 To make routing work properly you need to build it using:
@@ -43,7 +43,8 @@ To deploy them to the **wallet.ethereum.org** site, execute these commands (from
 
     git checkout gh-pages
     git merge develop
-    meteor-build-client ../build --path "https://wallet.ethereum.org/"
+    cd app
+    meteor-build-client ../build --path "/"
           
 And push (or PR) your changes to the gh-pages branch.
 

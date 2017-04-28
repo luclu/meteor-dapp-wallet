@@ -1,7 +1,5 @@
 <template name="views_send">
-
-    {{reactiveData}}
-
+    
     <!-- we use a form, which posts into the "dapp-form-helper-iframe" iframe, so that the browser stores inout fields for native autocpmplete -->
     <form class="account-send-form" action="about:blank" target="dapp-form-helper-iframe" autocomplete="on">
             
@@ -16,7 +14,7 @@
             <div class="col col-6 mobile-full from">
                 <h3>{{i18n 'wallet.send.from'}}</h3>
 
-                {{> dapp_selectAccount accounts=(selectAccounts deployContract) showAccountTypes=true}}
+                {{> dapp_selectAccount accounts=(selectAccounts deployContract) showAccountTypes=true class='send-from'}}
 
             </div>
 
@@ -123,7 +121,9 @@
             <div class="dapp-clear-fix"></div>
         </div>
 
-        {{> elements_compileContract onlyByteCode=showOnlyByteTextarea codeNotExecutable=(TemplateVar.get "codeNotExecutable")}}
+        {{#if $eq (TemplateVar.get "selectedToken") "ether"}}
+            {{> elements_compileContract onlyByteCode=showOnlyByteTextarea codeNotExecutable=(TemplateVar.get "codeNotExecutable")}}
+        {{/if}}
 
 
         <!-- fee -->
@@ -174,7 +174,9 @@
         </div>
 
         <hr>
-        <!-- button type="submit" will send the form -->
+        
+        <!-- a button type="submit" will send the form -->
+
         <button type="submit" class="dapp-block-button">
             {{#if TemplateVar.get "sending"}} 
                 {{i18n 'buttons.sending'}}

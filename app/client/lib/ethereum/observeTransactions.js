@@ -271,7 +271,7 @@ observeTransactions = function(){
         var confCount = 0;
 
         // check for confirmations
-        if(!tx.confirmed) {
+        if(!tx.confirmed && tx.transactionHash) {
             var filter = web3.eth.filter('latest');
             filter.watch(function(e, blockHash){
                 if(!e) {
@@ -324,9 +324,16 @@ observeTransactions = function(){
                         web3.eth.getTransaction(tx.transactionHash, function(e, transaction){
                             web3.eth.getTransactionReceipt(tx.transactionHash, function(e, receipt){
                                 if(!e) {
-
                                     // if still not mined, remove tx
                                     if(!transaction || !transaction.blockNumber) {
+
+                                        var warningText = TAPi18n.__('wallet.transactions.error.outOfGas', {from: Helpers.getAccountNameByAddress(tx.from), to: Helpers.getAccountNameByAddress(tx.to)});
+                                        Helpers.eventLogs(warningText);
+                                        GlobalNotification.warning({
+                                            content: warningText,
+                                            duration: 10
+                                        });
+
                                         Transactions.remove(tx._id);
                                         filter.stopWatching();
 
@@ -392,8 +399,7 @@ observeTransactions = function(){
 
             // remove pending confirmations, if present
             if(newDocument.operation) {
-                var confirmationId = Helpers.makeId('pc', newDocument.operation);
-                PendingConfirmations.remove(confirmationId);
+                checkConfirmation(Helpers.makeId('pc', newDocument.operation));
             }
 
 
@@ -403,11 +409,17 @@ observeTransactions = function(){
             }
 
             // add price data
-            if(!newDocument.exchangeRates || 
+            if(newDocument.timestamp && 
+               (!newDocument.exchangeRates || 
                !newDocument.exchangeRates.btc ||
                !newDocument.exchangeRates.usd ||
-               !newDocument.exchangeRates.eur) {
-                HTTP.get('https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=BTC,USD,EUR&ts='+ newDocument.timestamp, function(e, res){
+               !newDocument.exchangeRates.eur)) {
+                var url = 'https://min-api.cryptocompare.com/data/pricehistorical?fsym=ETH&tsyms=BTC,USD,EUR&ts='+ newDocument.timestamp;
+
+                if(typeof mist !== 'undefined')
+                    url += '&extraParams=Mist-'+ mist.version;
+
+                HTTP.get(url, function(e, res){
 
                     if(!e && res && res.statusCode === 200) {
                         var content = JSON.parse(res.content);
@@ -445,6 +457,11 @@ observeTransactions = function(){
             Wallets.update({address: newDocument.to}, {$addToSet: {
                 transactions: newDocument._id
             }});
+
+            // remove pending confirmations, if present
+            if(newDocument.operation) {
+                checkConfirmation(Helpers.makeId('pc', newDocument.operation));
+            }
         },
         /**
         Remove transactions confirmations from the accounts

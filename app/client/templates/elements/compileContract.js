@@ -17,12 +17,13 @@ Example usage
 Template['elements_compileContract'].onCreated(function() {
     var template = this;
 
-    // set the default
-    TemplateVar.set('value', '');
+    // set the defaults
+    TemplateVar.set('txData', '');
     TemplateVar.set('constructorInputs', []);
     TemplateVar.set('selectedType', this.data.onlyByteCode ? 'byte-code' : 'source-code');
     TemplateVar.set('compiledContracts', JSON.parse(localStorage['compiledContracts'] || null));
     TemplateVar.set('selectedContract', JSON.parse(localStorage['selectedContract'] || null));
+
 
     // focus the editors
     this.autorun(function(c) {
@@ -38,28 +39,57 @@ Template['elements_compileContract'].onCreated(function() {
                     template.aceEditor.focus();
             });
         }
+
     });
+
+
+    // re-run the compile data, to assure that remote elements are made reactive
+    var runDelayed = new Tracker.Dependency;
+
+    setTimeout(function(){
+        runDelayed.changed();
+        runDelayed = null;
+    }, 1000);
 
     // update and generate the contract data 
     this.autorun(function() {
+
+        if(runDelayed)
+            runDelayed.depend();
+        
+        // selected contract
         var selectedContract = TemplateVar.get('selectedContract');
         var constructorInputs = _.clone(TemplateVar.get('constructorInputs'));
+        var selectedToken = TemplateVar.getFrom('.select-token', 'selectedToken');
+        var selectedType = TemplateVar.get('selectedType');
+        var textareaData = TemplateVar.getFrom('.dapp-data-textarea', 'value');
+        var txData = '';
 
-        if(!selectedContract)
-            return;
+        if(selectedType && selectedType === 'source-code' && selectedContract){  
+            // add the default web3 sendTransaction arguments
+            constructorInputs.push({
+                data: selectedContract.bytecode
+            });
+    
+            // generate new contract code
+            // TemplateVar.set('txData', );
+            txData = web3.eth.contract(selectedContract.jsonInterface).new.getData.apply(null, constructorInputs);
+            TemplateVar.set('contract', selectedContract);
+    
+            // Save data to localstorage
+            localStorage.setItem('selectedContract', JSON.stringify(selectedContract));
 
-        // add the default web3 sendTransaction arguments
-        constructorInputs.push({
-            data: selectedContract.bytecode
-        });
+        } else {
+            // Bytecode Data  
+            if (!selectedToken || selectedToken === 'ether') {
 
-        // generate new contract code
-        TemplateVar.set('value', web3.eth.contract(selectedContract.jsonInterface).new.getData.apply(null, constructorInputs));
-        TemplateVar.set('contract', selectedContract);
+                // send ether         
+                txData = (TemplateVar.get('show')) ? textareaData : '';
 
-        // Save data to localstorage
-        localStorage.setItem('selectedContract', JSON.stringify(selectedContract));
-
+            }
+        }
+        
+        TemplateVar.set("txData", txData);   
     });
 });
 
@@ -79,8 +109,7 @@ Template['elements_compileContract'].onRendered(function() {
     this.aceEditor.$blockScrolling = Infinity;
     this.aceEditor.focus();
 
-    var defaultCode = localStorage['contractSource'] || "contract MyContract {\n    /* Constructor */\n    function MyContract() {\n \n    }\n}";
-
+    var defaultCode = localStorage['contractSource'] || Helpers.getDefaultContractExample();
     this.aceEditor.setValue(defaultCode);
     this.aceEditor.selection.selectTo(0);
 
@@ -105,6 +134,10 @@ Template['elements_compileContract'].onRendered(function() {
                     template.$('.abi-input').trigger('input');
                 });
 
+                // clean all error markers
+                _.each(editor.session.$backMarkers, function(i) { 
+                    editor.session.removeMarker(i.id);
+                })
 
                 if(!error) {
 
@@ -126,9 +159,10 @@ Template['elements_compileContract'].onRendered(function() {
                             };
                         }
 
+
                         return {
                             name: name,
-                            bytecode: contract.bytecode,
+                            bytecode: '0x' + contract.bytecode.replace(/^0x/, ''),
                             jsonInterface: jsonInterface,
                             constructorInputs: constructor.inputs
                         };
@@ -140,10 +174,27 @@ Template['elements_compileContract'].onRendered(function() {
 
 
                 } else {
-                    console.log(error);
-                    // Doesnt compile in solidity either, throw error
-                    TemplateVar.set(template, 'compileError', error);
+                    
+                    // Converts error into multiple bits
+                    var errorLine = error.toString().split(':');
 
+                    if (errorLine.length < 4) {
+                        // If it can't break the error then return all
+                        TemplateVar.set(template, 'compileError', error);
+                    } else {
+                        // Finds a ^____^ pattern
+                        var foundPattern = errorLine[5].match(/(\^-*\^)/g);
+                        var errorLength = (foundPattern)? foundPattern[0].length : 0;
+
+                        // Hightlights the error
+                        var Range = ace.require('ace/range').Range;
+                        editor.session.addMarker(new Range(errorLine[2]-1, 0, errorLine[2]-1, 200), "errorMarker");
+                        editor.session.addMarker(new Range(errorLine[2]-1, errorLine[3]-1, errorLine[2]-1, Number(errorLine[3]) + errorLength), "errorMarker");
+
+                        // Doesnt compile in solidity either, throw error
+                        TemplateVar.set(template, 'compileError', errorLine[5]);  
+                    }
+                    
                     TemplateVar.set(template, 'compiledContracts', false);
                     TemplateVar.set(template, 'selectedContract', false);
                 }
@@ -169,8 +220,9 @@ Template['elements_compileContract'].helpers({
             TemplateVar.set('selectedType', 'byte-code');
 
             Tracker.nonreactive(function(){
-                if(_.isEmpty(TemplateVar.getFrom('.dapp-data-textarea', 'value')))
+                if(_.isEmpty(TemplateVar.getFrom('.dapp-data-textarea', 'value'))) {
                     TemplateVar.set('show', false);
+                }
             });
 
         } else {
@@ -204,9 +256,12 @@ Template['elements_compileContract'].events({
     
     @event click button.hide-data
     */
-    'click button.hide-data': function(e){
+    'click button.hide-data': function(e, template){
         e.preventDefault();
-        TemplateVar.set('show', false);
+        TemplateVar.setTo('.dapp-data-textarea', 'value', '');
+        Tracker.afterFlush(function(){
+            TemplateVar.set(template, 'show', false);
+        });
     },
     /**
     Textfield switcher
@@ -239,8 +294,6 @@ Template['elements_compileContract'].events({
         TemplateVar.set('compiledContracts', compiledContracts);
         localStorage.setItem('compiledContracts', JSON.stringify(compiledContracts));
 
-        console.log(compiledContracts);
-
         Tracker.afterFlush(function(){
             // Run all inputs through formatter to catch bools
             template.$('.abi-input').trigger('change');
@@ -256,5 +309,14 @@ Template['elements_compileContract'].events({
         var inputs = Helpers.addInputValue(selectedContract.constructorInputs, this, e.currentTarget);
 
         TemplateVar.set('constructorInputs', inputs);
+    },
+    /**
+    Change the data
+
+    @event change textarea.dapp-data-textarea
+    */
+    'change textarea.dapp-data-textarea': function(e){
+        var value = e.currentTarget.value;
+        TemplateVar.set('txData', value);
     }
 });

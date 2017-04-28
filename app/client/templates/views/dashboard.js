@@ -56,7 +56,7 @@ Template['views_dashboard'].helpers({
         
         var enoughBalance = false;
         _.each(_.pluck(EthAccounts.find({}).fetch(), 'balance'), function(bal){
-            if(new BigNumber(bal, '10').gt(1000000000000000000)) enoughBalance = true;
+            if(new BigNumber(bal, '10').gt(10000000000000000)) enoughBalance = true;
         });
 
         return enoughBalance;
@@ -90,13 +90,18 @@ Template['views_dashboard'].events({
     'click .create.account': function(e){
         e.preventDefault();
 
-        mist.requestAccount(function(e, account) {
+        mist.requestAccount(function(e, accounts) {
             if(!e) {
-                account = account.toLowerCase();
-                EthAccounts.upsert({address: account}, {$set: {
-                    address: account,
-                    new: true
-                }});
+                if(!_.isArray(accounts)) {
+                    accounts = [accounts];
+                }
+                accounts.forEach(function(account){                
+                    account = account.toLowerCase();
+                    EthAccounts.upsert({address: account}, {$set: {
+                        address: account,
+                        new: true
+                    }});
+                });
             }
         });
     }

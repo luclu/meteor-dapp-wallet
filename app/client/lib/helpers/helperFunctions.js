@@ -13,6 +13,31 @@ The Helpers class containing helper functions
 Helpers = {};
 
 /**
+Get the default contract example
+
+@method getDefaultContractExample
+**/
+Helpers.getDefaultContractExample = function(withoutPragma) {
+    const source = 'contract MyContract {\n    /* Constructor */\n    function MyContract() {\n\n    }\n}';
+
+    if (withoutPragma) {
+        return source;
+    } else {
+        var solcVersion;
+
+        // Keep this for now as the Mist-API object will only be availabe from Mist version >= 0.8.9 
+        // so that older versions that will query code from wallet.ethereum.org won't use broken example code.
+        if (typeof mist !== 'undefined' && mist.solidity && mist.solidity.version) {
+            solcVersion = mist.solidity.version;
+        }
+        else {
+            solcVersion = '0.4.6';
+        }
+        return 'pragma solidity ^' + solcVersion + ';\n\n' + source;
+    }
+}
+
+/**
 Reruns functions reactively, based on an interval. Use it like so:
 
     Helpers.rerun['10s'].tick();
@@ -200,7 +225,9 @@ Gets the docuement matching the given addess from the EthAccounts or Wallets col
 @param {String} name or address
 */
 Helpers.getAccountNameByAddress = function(address) {
-    var doc = Helpers.getAccountByAddress(address.toLowerCase());
+    if (typeof address != 'undefined')
+        var doc =  Helpers.getAccountByAddress(address.toLowerCase());
+    
     return doc ? doc.name : address; 
 };
 
