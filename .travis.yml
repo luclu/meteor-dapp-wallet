@@ -2,8 +2,8 @@ language: node_js
 node_js: 7
 
 script:
-  npm install -g meteor-build-client
-  cd app && meteor-build-client ../build --path "/"
+  - npm install -g meteor-build-client
+  - cd app && meteor-build-client ../build --path "/"
 
 deploy:
   provider: pages
